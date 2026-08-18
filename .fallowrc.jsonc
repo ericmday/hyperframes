@@ -409,6 +409,9 @@
     },
   ],
   "ignoreDependencies": [
+    // Loaded by dynamic require() with a child_process fallback, so the agent
+    // session PTY never appears in the import graph (helpers/agentPty.ts).
+    "@homebridge/node-pty-prebuilt-multiarch",
     // Runtime/dynamic deps not visible to static analysis: tsup `external`,
     // dynamic require() resolution, peer/static-file consumption in tests,
     // and bun-hoisted workspace devDeps (e.g. happy-dom in root package.json

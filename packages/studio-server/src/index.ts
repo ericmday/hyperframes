@@ -39,3 +39,12 @@ export {
   createStudioMotionRenderBodyScript,
   type StudioMotionRenderScriptOptions,
 } from "./helpers/studioMotionRenderScript.js";
+export {
+  agentSessions,
+  closeAllAgentSessions,
+  AgentSessionService,
+  AgentSessionError,
+  type AgentSession,
+  type AgentSessionEvent,
+} from "./helpers/agentSessions.js";
+export { resolveAgentCli, AGENT_CLI_NAME } from "./helpers/agentCli.js";

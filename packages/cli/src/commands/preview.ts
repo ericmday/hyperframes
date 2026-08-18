@@ -1148,8 +1148,13 @@ async function runEmbeddedMode(
       // Kill ffmpeg first (sync, fast), then drain browsers (async, slower).
       const cleanup = async () => {
         const { closeThumbnailBrowser } = await import("../server/studioServer.js");
+        const { closeAllAgentSessions } = await import("@hyperframes/studio-server");
         const { drainBrowserPool, killTrackedProcesses } = await import("@hyperframes/engine");
         killTrackedProcesses();
+        // The studio's "Ask agent" panel leaves a CLI running on purpose when
+        // it is hidden; shutting the server down is where that stops being on
+        // purpose. Sync and fast, like killTrackedProcesses above.
+        closeAllAgentSessions();
         await closeThumbnailBrowser().catch(() => {});
         await drainBrowserPool().catch(() => {});
       };
