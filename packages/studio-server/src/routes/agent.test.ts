@@ -65,9 +65,15 @@ describe("registerAgentRoutes", () => {
     expect(await first.json()).toMatchObject({ started: true });
     expect(spawned[0]).toMatchObject({
       file: "/usr/local/bin/claude",
-      args: ["Make the fade slower"],
       cwd: "/projects/demo",
     });
+    // The first message carries the user's request PLUS the studio-session
+    // context — the CLI must know it lives inside the open studio, or it
+    // "verifies" by launching its own preview window.
+    expect(spawned[0]?.args).toHaveLength(1);
+    expect(spawned[0]?.args[0]).toContain("Make the fade slower");
+    expect(spawned[0]?.args[0]).toContain("## Studio session context");
+    expect(spawned[0]?.args[0]).toContain("Do NOT run `hyperframes preview`");
 
     const second = await app.request("http://localhost/projects/demo/agent/ask", {
       method: "POST",

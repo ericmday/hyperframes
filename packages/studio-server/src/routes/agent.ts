@@ -27,6 +27,24 @@ import { agentRequestAllowed } from "../helpers/localOnly.js";
 
 const MAX_MESSAGE_LENGTH = 100_000;
 
+/**
+ * Appended to the FIRST message of a session only. The spawned CLI cannot
+ * otherwise know it is running inside the studio's Ask-agent panel; without
+ * this it behaves like any terminal agent and "verifies" its edits by
+ * launching a preview server or opening a browser — a new window the user
+ * never asked for, next to a studio that already hot-reloads every save.
+ */
+function studioSessionContext(host: string | undefined): string {
+  const studioUrl = host ? `http://${host}/` : "the local studio";
+  return [
+    "## Studio session context",
+    `This session runs inside the HyperFrames Studio "Ask agent" panel. The project is ALREADY OPEN in the studio at ${studioUrl}, and every saved file change hot-reloads in the open canvas.`,
+    "- Edit the project files directly; the user watches the result live in the studio canvas.",
+    "- Do NOT run `hyperframes preview`, start any server, open a browser or any new window, or launch a render to verify changes — the open studio is the verification surface.",
+    "- If you need a still frame to check, use `hyperframes snapshot` (writes PNGs under snapshots/); never anything interactive.",
+  ].join("\n");
+}
+
 function allowed(c: Context): boolean {
   // The node adapter builds `c.req.url` from the Host header, so the two agree
   // in production; the fallback is what makes the guard reachable from a test,
@@ -128,8 +146,13 @@ export function registerAgentRoutes(
       }
 
       try {
+        const host = c.req.header("host") ?? new URL(c.req.url).host;
         return c.json({
-          session: sessions.create({ cwd: dir, cliPath, prompt: message }),
+          session: sessions.create({
+            cwd: dir,
+            cliPath,
+            prompt: `${message}\n\n${studioSessionContext(host)}`,
+          }),
           started: true,
         });
       } catch (error) {
