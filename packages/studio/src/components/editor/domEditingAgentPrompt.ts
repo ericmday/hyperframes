@@ -31,6 +31,7 @@ export function buildElementAgentPrompt({
   selectionContext,
   userInstruction,
   sourceFilePath,
+  projectDir,
 }: {
   selection: DomEditSelection;
   currentTime: number;
@@ -38,6 +39,13 @@ export function buildElementAgentPrompt({
   selectionContext?: string;
   userInstruction?: string;
   sourceFilePath?: string;
+  /**
+   * Absolute directory of the served project. Both destinations get it: the
+   * agent panel's CLI already runs there, but the copied prompt is pasted
+   * into a terminal that may be anywhere, and one composer means the two
+   * strings cannot drift.
+   */
+  projectDir?: string | null;
 }): string {
   const displayedSourceFile = sourceFilePath?.trim() || selection.sourceFile;
   const lines = [
@@ -46,6 +54,7 @@ export function buildElementAgentPrompt({
     "",
     userInstruction?.trim() || "Edit this selected HyperFrames element.",
     "",
+    ...(projectDir?.trim() ? [`Project: ${projectDir.trim()}`] : []),
     `Composition: ${selection.compositionPath}`,
     `Playback time: ${formatTime(currentTime)}`,
     `Source file: ${displayedSourceFile}`,

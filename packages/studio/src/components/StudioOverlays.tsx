@@ -4,7 +4,9 @@ import { AskAgentModal } from "./AskAgentModal";
 import { StudioGlobalDragOverlay } from "./StudioGlobalDragOverlay";
 import { StudioToast } from "./StudioToast";
 import { StudioFeedbackCard } from "./feedback/StudioFeedbackCard";
+import { AgentPanel } from "./AgentPanel";
 import { buildAgentContextPreview } from "./editor/domEditingAgentPrompt";
+import { useAgentSessionStore } from "../hooks/agentSessionStore";
 import type { useDomEditSession } from "../hooks/useDomEditSession";
 import type { useToast } from "../hooks/useToast";
 
@@ -43,6 +45,11 @@ export function StudioOverlays({
   toasts,
   dismissToast,
 }: StudioOverlaysProps) {
+  const agentSession = useAgentSessionStore((s) => s.session);
+  const agentSending = useAgentSessionStore((s) => s.sending);
+  const agentError = useAgentSessionStore((s) => s.error);
+  const clearAgentError = useAgentSessionStore((s) => s.clearError);
+
   return (
     <>
       {lintModal !== null && (
@@ -71,13 +78,19 @@ export function StudioOverlays({
           contextPreview={buildAgentContextPreview(domEditSession.domEditSelection, activeCompPath)}
           anchorPoint={domEditSession.agentModalAnchorPoint}
           onSubmit={domEditSession.handleAgentModalSubmit}
+          onAsk={domEditSession.handleAgentModalAsk}
+          sending={agentSending}
+          error={agentError}
+          hasSession={agentSession !== null}
           onClose={() => {
             domEditSession.setAgentModalOpen(false);
             domEditSession.setAgentPromptSelectionContext(undefined);
             domEditSession.setAgentModalAnchorPoint(null);
+            clearAgentError();
           }}
         />
       )}
+      <AgentPanel projectId={projectId} />
       {dragOverlayActive && <StudioGlobalDragOverlay />}
       {/* One bottom-right stack so the feedback card and toasts queue instead
           of covering each other. Empty when nothing is showing. */}

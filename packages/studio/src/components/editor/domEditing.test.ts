@@ -1143,6 +1143,17 @@ describe("patch builders and prompt builder", () => {
 
     expect(prompt).toContain("Source file: /tmp/hf-studio-project/index.html");
     expect(prompt).not.toContain("Source file: index.html");
+
+    // The project directory rides the same composer, so the agent panel's CLI
+    // and a prompt pasted into some other terminal are told the same thing.
+    expect(prompt).not.toContain("Project:");
+    const withDir = buildElementAgentPrompt({
+      selection,
+      currentTime: 1.25,
+      sourceFilePath: "/tmp/hf-studio-project/index.html",
+      projectDir: "/tmp/hf-studio-project",
+    });
+    expect(withDir).toContain("Project: /tmp/hf-studio-project");
   });
 
   it("includes raster click context in copied agent prompts", () => {

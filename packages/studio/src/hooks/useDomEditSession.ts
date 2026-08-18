@@ -160,6 +160,7 @@ export function useDomEditSession({
     setAgentModalAnchorPoint,
     handleAskAgent,
     handleAgentModalSubmit,
+    handleAgentModalAsk,
   } = useAskAgentModal({
     projectId,
     activeCompPath,
@@ -510,6 +511,7 @@ export function useDomEditSession({
     handleDomRemoveTextField,
     handleAskAgent,
     handleAgentModalSubmit,
+    handleAgentModalAsk,
     handleBlockedDomMove,
     handleDomManualDragStart,
     handleDomEditElementDelete,

@@ -31,6 +31,7 @@ export interface DomEditActionsValue extends Pick<
   | "handleDomRemoveTextField"
   | "handleAskAgent"
   | "handleAgentModalSubmit"
+  | "handleAgentModalAsk"
   | "handleBlockedDomMove"
   | "handleDomManualDragStart"
   | "handleDomEditElementDelete"
@@ -165,6 +166,7 @@ export function DomEditProvider({
     handleDomRemoveTextField,
     handleAskAgent,
     handleAgentModalSubmit,
+    handleAgentModalAsk,
     handleBlockedDomMove,
     handleDomManualDragStart,
     handleDomEditElementDelete,
@@ -254,6 +256,7 @@ export function DomEditProvider({
       handleDomRemoveTextField,
       handleAskAgent,
       handleAgentModalSubmit,
+      handleAgentModalAsk,
       handleBlockedDomMove,
       handleDomManualDragStart,
       handleDomEditElementDelete,
@@ -325,6 +328,7 @@ export function DomEditProvider({
       handleDomRemoveTextField,
       handleAskAgent,
       handleAgentModalSubmit,
+      handleAgentModalAsk,
       handleBlockedDomMove,
       handleDomManualDragStart,
       handleDomEditElementDelete,

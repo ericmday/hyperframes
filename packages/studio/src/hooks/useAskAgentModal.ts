@@ -1,9 +1,9 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { copyTextToClipboard } from "../utils/clipboard";
-import { readTagSnippetByTarget } from "../utils/sourcePatcher";
-import { toProjectAbsolutePath, type AgentModalAnchorPoint } from "../utils/studioHelpers";
-import { buildElementAgentPrompt, type DomEditSelection } from "../components/editor/domEditing";
-import { usePlayerStore } from "../player";
+import { type AgentModalAnchorPoint } from "../utils/studioHelpers";
+import { type DomEditSelection } from "../components/editor/domEditing";
+import { useAgentSessionStore } from "./agentSessionStore";
+import { useElementAgentPrompt } from "./useElementAgentPrompt";
 
 // ── Types ──
 
@@ -29,15 +29,25 @@ export function useAskAgentModal({
 }: UseAskAgentModalParams) {
   // ── State ──
 
-  const [agentPromptTagSnippet, setAgentPromptTagSnippet] = useState<string | undefined>();
-  const [agentPromptSelectionContext, setAgentPromptSelectionContext] = useState<
-    string | undefined
-  >();
   const [agentModalAnchorPoint, setAgentModalAnchorPoint] = useState<AgentModalAnchorPoint | null>(
     null,
   );
   const [copiedAgentPrompt, setCopiedAgentPrompt] = useState(false);
   const [agentModalOpen, setAgentModalOpen] = useState(false);
+
+  const {
+    selectionContext: agentPromptSelectionContext,
+    setSelectionContext: setAgentPromptSelectionContext,
+    preload: preloadAgentPromptSnippet,
+    compose: composePrompt,
+    clear: clearAgentPrompt,
+  } = useElementAgentPrompt({
+    activeCompPath,
+    projectDir,
+    projectIdRef,
+    domEditSelectionRef,
+    domEditSelection,
+  });
 
   // ── Refs ──
 
@@ -45,57 +55,25 @@ export function useAskAgentModal({
 
   // ── Callbacks ──
 
-  const preloadAgentPromptSnippet = useCallback(
-    async (selection: DomEditSelection) => {
-      const pid = projectIdRef.current;
-      if (!pid) return;
-
-      const targetPath = selection.sourceFile || activeCompPath || "index.html";
-      try {
-        const response = await fetch(
-          `/api/projects/${pid}/files/${encodeURIComponent(targetPath)}`,
-        );
-        if (!response.ok) return;
-
-        const data = (await response.json()) as { content?: string };
-        const html = data.content;
-        const tagSnippet =
-          typeof html === "string" ? readTagSnippetByTarget(html, selection) : undefined;
-
-        setAgentPromptTagSnippet((current) => {
-          if (domEditSelectionRef.current !== selection) return current;
-          return tagSnippet;
-        });
-      } catch {
-        // Runtime outerHTML is still available as a synchronous copy fallback.
-      }
-    },
-    [activeCompPath, domEditSelectionRef, projectIdRef],
-  );
-
   const handleAskAgent = useCallback(() => {
     if (!domEditSelection) return;
-    setAgentPromptTagSnippet(undefined);
-    setAgentPromptSelectionContext(undefined);
+    clearAgentPrompt();
     setAgentModalAnchorPoint(null);
     void preloadAgentPromptSnippet(domEditSelection);
     setAgentModalOpen(true);
-  }, [domEditSelection, preloadAgentPromptSnippet]);
+  }, [clearAgentPrompt, domEditSelection, preloadAgentPromptSnippet]);
+
+  /** Everything a sent prompt does to the dialog, whichever way it went out. */
+  const closeAfterSend = useCallback(() => {
+    setAgentModalOpen(false);
+    setAgentPromptSelectionContext(undefined);
+    setAgentModalAnchorPoint(null);
+  }, [setAgentPromptSelectionContext]);
 
   const handleAgentModalSubmit = useCallback(
     async (userInstruction: string) => {
-      if (!domEditSelection) return;
-
-      const targetPath = domEditSelection.sourceFile || activeCompPath || "index.html";
-      const tagSnippet = agentPromptTagSnippet ?? domEditSelection.element.outerHTML;
-      const prompt = buildElementAgentPrompt({
-        selection: domEditSelection,
-        currentTime: usePlayerStore.getState().currentTime,
-        tagSnippet,
-        selectionContext: agentPromptSelectionContext,
-        userInstruction,
-        sourceFilePath: toProjectAbsolutePath(projectDir, targetPath),
-      });
+      const prompt = composePrompt(userInstruction);
+      if (prompt === null) return;
 
       const copied = await copyTextToClipboard(prompt);
       if (!copied) {
@@ -103,21 +81,31 @@ export function useAskAgentModal({
         return;
       }
 
-      setAgentModalOpen(false);
-      setAgentPromptSelectionContext(undefined);
-      setAgentModalAnchorPoint(null);
+      closeAfterSend();
       if (copiedAgentTimerRef.current) clearTimeout(copiedAgentTimerRef.current);
       setCopiedAgentPrompt(true);
       copiedAgentTimerRef.current = setTimeout(() => setCopiedAgentPrompt(false), 1600);
     },
-    [
-      activeCompPath,
-      agentPromptSelectionContext,
-      agentPromptTagSnippet,
-      domEditSelection,
-      projectDir,
-      showToast,
-    ],
+    [closeAfterSend, composePrompt, showToast],
+  );
+
+  /**
+   * Send the same prompt into the agent panel instead of the clipboard.
+   *
+   * The first ask starts the session; every one after is a follow-up into the
+   * SAME one, which is the point — the agent keeps what it has already read
+   * about the project. The dialog closes only on success, so a missing CLI
+   * leaves the typed request (and Copy prompt) where the user can still use it.
+   */
+  const handleAgentModalAsk = useCallback(
+    async (userInstruction: string) => {
+      const prompt = composePrompt(userInstruction);
+      const pid = projectIdRef.current;
+      if (prompt === null || !pid) return;
+
+      if (await useAgentSessionStore.getState().ask(pid, prompt)) closeAfterSend();
+    },
+    [closeAfterSend, composePrompt, projectIdRef],
   );
 
   // ── Effects ──
@@ -125,11 +113,12 @@ export function useAskAgentModal({
   // Clear agent-prompt state when selection changes
   // eslint-disable-next-line no-restricted-syntax
   useEffect(() => {
-    setAgentPromptTagSnippet(undefined);
-    setAgentPromptSelectionContext(undefined);
+    clearAgentPrompt();
     setAgentModalAnchorPoint(null);
     setCopiedAgentPrompt(false);
-  }, [domEditSelection]);
+    // clearAgentPrompt is stable (no deps of its own); listed to satisfy the
+    // hooks rule without widening what actually retriggers this.
+  }, [clearAgentPrompt, domEditSelection]);
 
   // Cleanup copiedAgentTimerRef
   // eslint-disable-next-line no-restricted-syntax
@@ -156,5 +145,6 @@ export function useAskAgentModal({
     preloadAgentPromptSnippet,
     handleAskAgent,
     handleAgentModalSubmit,
+    handleAgentModalAsk,
   };
 }

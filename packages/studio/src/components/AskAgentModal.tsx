@@ -25,17 +25,34 @@ function getAgentModalPositionStyle(
   return { left, top, transform: "translateX(-50%)" };
 }
 
+/**
+ * Two ways out, and they send the SAME string: Ask agent writes it into the
+ * panel's live session, Copy prompt puts it on the clipboard for a terminal
+ * the studio does not own. Copy stays because the panel can fail in ways the
+ * clipboard cannot — no CLI installed, mainly — and because a prompt is
+ * sometimes wanted somewhere else entirely.
+ */
 export function AskAgentModal({
   selectionLabel,
   contextPreview,
   anchorPoint = null,
   onSubmit,
+  onAsk,
+  sending = false,
+  error,
+  hasSession = false,
   onClose,
 }: {
   selectionLabel: string;
   contextPreview?: string;
   anchorPoint?: AgentModalAnchorPoint | null;
   onSubmit: (instruction: string) => void;
+  /** Send into the agent panel. Absent when no project dir is resolved. */
+  onAsk?: (instruction: string) => void;
+  sending?: boolean;
+  error?: string | null;
+  /** A session is already running, so this ask is a follow-up into it. */
+  hasSession?: boolean;
   onClose: () => void;
 }) {
   const [value, setValue] = useState("");
@@ -58,6 +75,13 @@ export function AskAgentModal({
   const handleSubmit = () => {
     if (!value.trim()) return;
     onSubmit(value.trim());
+  };
+
+  // ⌘/Ctrl+Enter is Ask agent when the panel is available: it is the primary
+  // path now, and the button order says the same thing.
+  const handleAsk = () => {
+    if (!value.trim() || sending || !onAsk) return;
+    onAsk(value.trim());
   };
 
   return (
@@ -115,7 +139,10 @@ export function AskAgentModal({
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleSubmit();
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                if (onAsk) handleAsk();
+                else handleSubmit();
+              }
               // Escape is handled at the document level by useDialogBehavior,
               // guarded against discarding a dirty draft.
             }}
@@ -130,18 +157,35 @@ export function AskAgentModal({
               </pre>
             </details>
           )}
+          {error && <p className="text-[11px] text-red-400">{error}</p>}
         </div>
         <div className="flex items-center justify-between px-5 py-3 border-t border-neutral-800/60">
           <span className="text-[11px] text-neutral-600">
-            {navigator.platform.includes("Mac") ? "⌘" : "Ctrl"}+Enter to copy
+            {navigator.platform.includes("Mac") ? "⌘" : "Ctrl"}+Enter to{" "}
+            {onAsk ? "ask the agent" : "copy"}
           </span>
-          <button
-            className="px-4 py-1.5 rounded-lg bg-studio-accent/90 text-xs font-medium text-neutral-950 hover:bg-studio-accent disabled:opacity-40 disabled:cursor-not-allowed"
-            disabled={!value.trim()}
-            onClick={handleSubmit}
-          >
-            Copy prompt
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              className={
+                onAsk
+                  ? "px-3 py-1.5 rounded-lg border border-neutral-800 text-xs font-medium text-neutral-300 hover:bg-neutral-800/50 disabled:opacity-40 disabled:cursor-not-allowed"
+                  : "px-4 py-1.5 rounded-lg bg-studio-accent/90 text-xs font-medium text-neutral-950 hover:bg-studio-accent disabled:opacity-40 disabled:cursor-not-allowed"
+              }
+              disabled={!value.trim()}
+              onClick={handleSubmit}
+            >
+              Copy prompt
+            </button>
+            {onAsk && (
+              <button
+                className="px-4 py-1.5 rounded-lg bg-studio-accent/90 text-xs font-medium text-neutral-950 hover:bg-studio-accent disabled:opacity-40 disabled:cursor-not-allowed"
+                disabled={!value.trim() || sending}
+                onClick={handleAsk}
+              >
+                {sending ? "Sending…" : hasSession ? "Ask agent (same session)" : "Ask agent"}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
